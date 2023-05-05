@@ -13,6 +13,7 @@ https://github.com/jessicazhu318/project.git
 ### Sources:
 - Received help with idea generation from Ariana Goldstein (former EE250 student)
 - GrovePi LCD with RGB: https://github.com/DexterInd/GrovePi/blob/master/Software/Python/grove_rgb_lcd/grove_rgb_lcd.py
+- Weather API: https://www.weatherapi.com/
 
 ### List of libraries:
 The following external libraries were used:
