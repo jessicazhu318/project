@@ -1,31 +1,26 @@
 # EE250 Project
 
-
 # All imports
 import paho.mqtt.client as mqtt
 import requests
 import json
 import time
-import weather
-import datetime as dt
+from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 # Variables
 WEATHER_API_KEY = '308ed26fa6a144f8961195323230405'  	# API key for Weather API
-current_light_value = 10 								# Arbitrary
-
-# Topics
-laptop_path = "zhujessi/laptop"		# laptop data topic
-light_path = "zhujessi/light" 		# light sensor topic
+current_light_value = 10 				# Arbitrary initial value for global variable
 
 # Executed when client receives connection acknowledgement packet response from server
 def on_connect(client, userdata, flags, rc):
     print("Connected to server (i.e., broker) with result code "+str(rc))
 
-    # subscribe to the light sensor topic
-    client.subscribe(light_path, qos=1)
-    client.message_callback_add(light_path, on_message_from_light)
+    # Subscribe to light sensor topic
+    client.subscribe("zhujessi/light", qos=1)
+    # Add custom callback
+    client.message_callback_add("zhujessi/light", on_message_from_light)
 
 # Default callback for messages received when another node publishes message client is subscribed to
 def on_message(client, userdata, msg):
@@ -36,12 +31,13 @@ def on_message_from_light(client, userdata, message):
     # Laptop received light sensor data from rpi
     # Rpi published light sensor value to subscribed topic
     print("Custom callback - Light")
-    print("Light sensor reading: " + str(message.payload, "utf-8"))
+    sensor_reading = str(message.payload, "utf-8")
+    print("Light sensor reading: " + sensor_reading)
 
     # Update global light sensor value variable
     global current_light_value
-    current_light_value = int(str(message.payload, "utf-8"))
-    print("Current light value in callback: " , current_light_value)
+    current_light_value = int(sensor_reading)
+    # print("Current light value in callback: " , current_light_value)
 
 # Obtain relevant weather info from API
 def extract_weather_info(zipcode):
@@ -59,7 +55,7 @@ def extract_weather_info(zipcode):
         cloud_data = response_current.json()
         visibility_data = response_forecast.json()
 
-        # Extract the cloud cover percentage, visibility and integer representing whether it is day or not from the JSON response
+        # Extract cloud cover, visibility, and whether day or night
         clouds = cloud_data['current']['cloud']
         day_or_night = cloud_data['current']['is_day']
         visibility = visibility_data['current']['vis_km']
@@ -76,86 +72,90 @@ def extract_weather_info(zipcode):
 
 # Function to compare weather API light info with light sensor value to decide if blinds
 # should be open or closed.
-def compare_light(light_sensor_value, weather_api_light, weather_api_day):
+def compare_light(weather_api_day_or_night, light_sensor_value, weather_api_light):
     
     blinds_msg = ""
     
-    if weather_api_day == 0:								# Close blinds at night
+    if weather_api_day_or_night == 0:					# Close blinds at night
     	blinds_msg = "Close blinds"
-    elif weather_api_day == 1:								# Only open blinds during day
+    elif weather_api_day_or_night == 1:					# Only open blinds during day
         if weather_api_light < light_sensor_value:			# Inside is brighter
             blinds_msg = "Close blinds"
-        elif weather_api_light > light_sensor_value:	
-            blinds_msg = "Open blinds"						# Outside is brighter
+        elif weather_api_light >= light_sensor_value:	
+            blinds_msg = "Open blinds"					# Outside is brighter
+    else:
+        print("Error: Unrecognized if day or night")
     
     return blinds_msg
 
-# Function to weight different pieces of info from weather API and assign 1 light value as
-# a percentage
-def gen_outside_light_value(weather_api_cloud, weather_api_visibility):
-    # Weights
+# Function to calculate light percentage inside (based on sensor) and outside (based on API)
+def data_processing(sensor_light, weather_api_cloud, weather_api_visibility):
+    
+    # Return inside light value as percentage (higher value = brighter)
+    inside_light = (sensor_light / 800)*100				# 800 is max sensor light value
+    
+    # Weights (cloud coverage much more important than visibility)
     CLOUD_WEIGHT = 85 
     VISIBILITY_WEIGHT = 15
 
     # Convert visibility in km to percentage
     visibility_percent = weather_api_visibility / 296	# 296 km is max visibility on clear day
 
-    # Return outside light value (higher value = brighter)
-    outside_light = ((CLOUD_WEIGHT*(100-weather_api_cloud)) + (VIS_WEIGHT*visibility_percent))/100
+    # Return outside light value as percentage (higher value = brighter)
+    outside_light = ((CLOUD_WEIGHT*(100-weather_api_cloud)) + (VISIBILITY_WEIGHT*visibility_percent))/100
     
-    return outside_light
+    return inside_light, outside_light
 
-# Function to take light sensor reading and assign 1 light value as a percentage
-def sensor_signal_processing(sensor_light):
+# Function to control blinds by publishing correct blinds message
+def control_blinds(zipcode):
 
-    # return inside light value out of 100 --> higher value = lighter
-    inside_light = (sensor_light / 800)*100				# 800 is max sensor light value
+	# Get weather info at location
+    api_clouds, day_or_night, api_visibility = extract_weather_info(zipcode)
     
-    return inside_light
+    print("Clouds: " + str(api_clouds))
+    print("Visibility: " + str(api_visibility))
+    if day_or_night == 0:
+    	print("Night")
+    elif day_or_night == 1:
+    	print("Day")
+    else:
+    	print("Error: Unrecognized if day or night")
 
+    # Calculate inside and outside light percentages
+    inside_light, outside_light = data_processing(current_light_value, api_clouds, api_visibility)
+    print("Inside percentage:", inside_light)
+    print("Outside percentage:", outside_light)
 
-# Function pulls weather data, updates plot of light sensor values and called every 2 secs
-def update_plot(i, xdata, ydata):
+    # Publish open/close blinds message
+    blinds_msg = compare_light(day_or_night, inside_lightval, outside_lightval)
+    client.publish("zhujessi/laptop", str(blinds_msg))
+    #print("Message should be: " + str(blinds_msg))
 
-    xdata.append(dt.datetime.now().strftime('%H:%M:%S.%f'))
-    ydata.append(current_light_value)
-    print(current_light_value)
+# Function updates plot and blinds message every 2 secs
+def update_plot(i, x, y):
+
+    x.append(datetime.now().strftime("%H:%M:%S"))
+    y.append(current_light_value)
+    #print(current_light_value)
 
     # Show most recent 10 data points
-    xdata = xs[-10:]
-    ydata = ys[-10:]
+    x = x[-10:]
+    y = y[-10:]
 
-    # draw x and y lists, plotting the points according to list contents
+    # Plot
     ax.clear()
-    ax.plot(xdata, ydata, marker = 'o', color = 'darkblue', alpha = 0.5)
+    ax.plot(x, y, 'ks')
 
-    # formatting plot
-    plt.xticks(rotation=45, ha='right')
-    plt.subplots_adjust(bottom=0.30)
-    plt.title('Light Sensor Readings over Time')
-    plt.ylabel('Light Value')
+    # Format plot
+    #plt.xticks(rotation=45, ha='right')
+    #plt.subplots_adjust(bottom=0.30)
+    plt.title("Most Recent Light Sensor Readings")
+    plt.ylabel("Light Reading")
+    plt.xlabel("Time")
 
-
-    # getting current weather data by calling weather initialization function from weather.py
-    zipcode = 90089 									# My current LA zip code
-    curr_clouds, day_or_night, curr_vis = extract_weather_info(zipcode)
-    
-    print("Clouds: " + str(curr_clouds))
-    print("Visibility: " + str(curr_vis))
-    print("Day? " + str(day_or_night))
-
-    # calculating single value for outside light out of 100
-    outside_lightval = gen_outside_light_value(curr_clouds, curr_vis)
-    print("Outside percentage:", outside_lightval)
-
-    # calculating single value for inside light out of 100
-    inside_lightval = sensor_signal_processing(current_light_value)
-    print("Inside percentage:", inside_lightval)
-
-    # publishing the result (open vs. closed blinds) to the pi
-    result = compare_light(inside_lightval, outside_lightval, day_or_night)
-    client.publish(laptop_path, str(result))
-    print("Message should be: " + str(result))
+	# Find and publish correct blinds message at given location
+    current_zipcode = 90089 					# My current LA zip code
+    control_blinds(current_zipcode)
 
     
 if __name__ == '__main__':
@@ -173,9 +173,9 @@ if __name__ == '__main__':
     # Create empty figure
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    xdata, ydata = [], []
+    x, y = [], []
 
     # Update figure every 2 sec
-    ani = FuncAnimation(fig, update_plot, fargs=(xdata, ydata), interval=2000)
+    ani = FuncAnimation(fig, update_plot, fargs=(x, y), interval=2000)
     plt.show()
         
