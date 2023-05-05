@@ -5,9 +5,6 @@ import sys
 import paho.mqtt.client as mqtt
 import time
 import grovepi as gp
-#import threading # has Lock, a key. you cannot perform operations without the key
-
-#lock = threading.Lock()
 
 # From GrovePi Git repository
 if sys.platform == 'uwp':
@@ -96,26 +93,23 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     print("Default callback - topic: " + msg.topic + "   msg: " + str(msg.payload, "utf-8"))
 
-# laptop weather data callback 
+# Custom message callback
 def on_message_from_laptop(client, userdata, message):
-    #with lock:
     print("Custom callback - Laptop")
 
-    blinds_msg = str(message.payload, "utf-8")
-    print("Blinds message: " + blinds_msg)
-    
     # Print open/close blinds message on LCD
+    blinds_msg = str(message.payload, "utf-8")
     setText_norefresh(blinds_msg)
     if blinds_msg == "Close blinds":
-        setRGB(20, 228, 255) # Set background color of LCD to blue for close blinds
+        setRGB(20, 228, 255) 	# Set background color of LCD to blue for close blinds
     elif blinds_msg == "Open blinds":
-        setRGB(20, 245, 90) # Set background color of LCD to green for open blinds
+        setRGB(20, 245, 90) 	# Set background color of LCD to green for open blinds
     else:
         print("Error: unrecognized blinds message")
 
 
 if __name__ == '__main__':
-	# Create client object
+    # Create client object
     client = mqtt.Client()
     # Attach default callback defined above for incoming mqtt messages
     client.on_message = on_message
@@ -129,16 +123,10 @@ if __name__ == '__main__':
     while True:
     	# Connect light sensor to analog port A0 of GrovePi
     	light_sensor = 0
+    	
+    	while True:
+    	    # Read sensor value from light sensor
+            sensor_value = gp.analogRead(light_sensor)
+            client.publish("zhujessi/light", sensor_value)
 
-        #try:
-            #with lock:
-            while True:
-                # Read sensor value from light sensor
-                sensor_value = gp.analogRead(light_sensor)
-                client.publish("zhujessi/light", sensor_value)
-                print("Publishing light sensor value")
-
-            	time.sleep(1)		# Prevent i2c overload
-            
-        #except IOError:
-            #print("Error")
+            time.sleep(1)			# Prevent i2c overload
