@@ -8,7 +8,7 @@
 https://github.com/jessicazhu318/project.git
 
 ### Demo video: 
-[insert link]
+https://drive.google.com/file/d/1MisEUTBolnVkyQZDpKehXCwJoPgnoj-b/view?usp=sharing
 
 ### Sources:
 - Received help with idea generation from Ariana Goldstein (former EE250 student)
