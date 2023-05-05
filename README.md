@@ -24,12 +24,12 @@ The following external libraries were used:
 ### Instructions:
 To run the system, first install all external libraries listed above. On the laptop, use
 the following commands to install the necessary libraries:
-	- pip install paho-mqtt
-	- pip install requests
-	- pip install matplotlib
+- pip install paho-mqtt
+- pip install requests
+- pip install matplotlib
 On the RaspberryPi (RPi), use the following commands to install the necessary libraries:
-	- pip install paho-mqtt
-	- pip install grovepi
+- pip install paho-mqtt
+- pip install grovepi
 
 Once all libraries have been installed, clone the Github repository listed above on BOTH
 the laptop and RPi using the git clone command. Once cloned, run the laptop.py file in the
