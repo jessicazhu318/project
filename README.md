@@ -31,6 +31,7 @@ On the laptop, use the following commands to install the necessary libraries:
 - pip install matplotlib
 <br>
 On the RaspberryPi (RPi), use the following commands to install the necessary libraries:
+<br> 
 - pip install paho-mqtt
 - pip install grovepi
 
